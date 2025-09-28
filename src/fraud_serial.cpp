@@ -1,55 +1,82 @@
 #include <iostream>
 #include <fstream>
 #include <sstream>
-#include <string>
 #include <vector>
-using namespace std;
+#include <string>
 
 struct Transaction {
     int id;
     double amount;
-    string location;
-    string time;
+    std::string location;
+    std::string time;
 };
 
-// Simple fraud rules
-bool isFraud(const Transaction &t) {
-    if (t.amount > 9000) return true; // suspiciously large
-    if (t.location == "MUM" && stoi(t.time.substr(0, 2)) < 6) return true; // odd hours in Mumbai
-    return false;
-}
-
 int main() {
-    ifstream file("../data/transactions.csv");
-    if (!file.is_open()) {
-        cerr << "Error: Could not open dataset.\n";
+    std::ifstream inFile("../data/transactions.csv");
+    if (!inFile.is_open()) {
+        std::cerr << "Error: Could not open transactions.csv" << std::endl;
         return 1;
     }
 
-    string line;
-    getline(file, line); // skip header
+    std::vector<Transaction> transactions;
+    std::vector<Transaction> anomalies;
 
-    vector<Transaction> frauds;
+    std::string line;
+    getline(inFile, line); // skip header row
 
-    while (getline(file, line)) {
-        stringstream ss(line);
-        string token;
+    while (getline(inFile, line)) {
+        if (line.empty()) continue;
+
+        std::stringstream ss(line);
+        std::string field;
         Transaction t;
 
-        getline(ss, token, ','); t.id = stoi(token);
-        getline(ss, token, ','); t.amount = stod(token);
-        getline(ss, token, ','); t.location = token;
-        getline(ss, token, ','); t.time = token;
+        // id
+        if (!getline(ss, field, ',')) continue;
+        try { t.id = stoi(field); } catch (...) { continue; }
 
-        if (isFraud(t)) frauds.push_back(t);
+        // amount
+        if (!getline(ss, field, ',')) continue;
+        try { t.amount = stod(field); } catch (...) { continue; }
+
+        // location
+        if (!getline(ss, field, ',')) continue;
+        t.location = field;
+
+        // time
+        if (!getline(ss, field, ',')) continue;
+        t.time = field;
+
+        transactions.push_back(t);
+    }
+    inFile.close();
+
+    // Fraud detection rule: amount > 5000
+    for (auto &t : transactions) {
+        if (t.amount > 5000.0) {
+            anomalies.push_back(t);
+        }
     }
 
-    cout << "Fraudulent transactions detected: " << frauds.size() << "\n";
-    for (size_t i = 0; i < min((size_t)10, frauds.size()); i++) {
-        cout << "ID: " << frauds[i].id << " Amount: " << frauds[i].amount
-             << " Location: " << frauds[i].location
-             << " Time: " << frauds[i].time << "\n";
+    // Save anomalies to results file
+    std::ofstream outFile("../results/serial_output.txt");
+    if (!outFile.is_open()) {
+        std::cerr << "Error: Could not open results file" << std::endl;
+        return 1;
     }
+
+    for (auto &t : anomalies) {
+        outFile << "ID=" << t.id
+                << " | Amount=" << t.amount
+                << " | Location=" << t.location
+                << " | Time=" << t.time
+                << std::endl;
+    }
+    outFile.close();
+
+    std::cout << "Processed " << transactions.size() << " transactions.\n";
+    std::cout << "Detected " << anomalies.size()
+              << " anomalies. Results written to results/serial_output.txt\n";
 
     return 0;
 }
